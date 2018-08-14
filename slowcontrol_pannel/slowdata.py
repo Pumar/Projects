@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 from root_pandas import read_root
 
+### Insert path to most recent directory with slow data
 _,mostRecentDir = sys.argv
 
 config = configparser.ConfigParser()
@@ -17,12 +18,21 @@ config.read('config.ini')
 
 plotoutDir = config['SlowControl']['plotoutdir']
 
-pressrange = getconfigrange('AlarmRanges', 'pressure')
-temprange = getconfigrange('AlarmRanges', 'temperature')
-humidrange = getconfigrange('AlarmRanges', 'humidity')
-magrange = getconfigrange('AlarmRanges', 'magfield')
+def getconfigrange(section, value):
+    return eval(config[section][value])
 
+pressrangealarm = getconfigrange('AlarmRanges', 'pressure')
+temprangealarm = getconfigrange('AlarmRanges', 'temperature')
+humidrangealarm = getconfigrange('AlarmRanges', 'humidity')
+magrangealarm = getconfigrange('AlarmRanges', 'magfield')
 
+"""
+not needed
+pressrange = getconfigrange('PlotRanges', 'pressure')
+temprange = getconfigrange('PlotRanges','temperature')
+humidrange = getconfigrange('PlotRanges','humidity')
+magrange = getconfigrange('PlotRanges','magfield')
+"""
 for file in os.listdir(mostRecentDir):
 	if file.endswith('.sroot'):
 		sroot = file
@@ -38,18 +48,32 @@ axisLabels = ["Temperature [Deg]", "Pressure [Pa]", "Humidity [%]", "Magnetic fi
 plotTitles = ["Temperature", "Pressure", "Humidity", "Magnetic field"]
 fileNameStems = ['temperature', 'pressure', 'humidity', 'magfield']
 
+
+"""
+for vl in slowdata.columns:
+	print vl+',  std:  '+str(slowdata[vl].std())
+"""
+
 #Outlier filtering (when arduino and labview are out of sync, wild values for slow control are recorded)
 slowdata = slowdata[(slowdata.temp > 25) & (slowdata.temp < 35)]
 slowdata = slowdata[(slowdata.pres > 100000) & (slowdata.pres < 103000)]
 slowdata = slowdata[(slowdata.btot > 0) & (slowdata.btot < 1500)]
-slowdata = slowdata[(slowdata.humid > 0) & (slowdata.humid < 100)]
+slowdata = slowdata[(slowdata.humid > 42) & (slowdata.humid < 50)]
+"""
 for hv in hvs:
-    slowdata = slowdata[(slowdata[hv] > slowdata[hv].mean() - 3) & (slowdata[hv] < slowdata[hv].mean() + 3)]
+    slowdata = slowdata[(slowdata[hv] > slowdata[hv].mean() - 5) & (slowdata[hv] < slowdata[hv].mean() + 5)]
+"""
 
-
+"""
 for hv in hvs:
     plot= slowdata.plot(x='time',y=hv)
     fig = plot.get_figure()
     fig.savefig(plotoutDir+'/'+hv+"_output.png")
+"""
 
-
+for di,fn in zip(dataIndices,fileNameStems):
+	plot = slowdata.plot(x='time',y=di)
+	ax = plt.gca()
+	plt.ylim(getconfigrange('PlotRanges',fn))
+	fig = plot.get_figure()
+	fig.savefig(plotoutDir+'/'+di+"_output.png")
