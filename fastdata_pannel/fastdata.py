@@ -16,10 +16,16 @@ _,mostRecentDir = sys.argv
 rootf=[]
 for file in os.listdir(mostRecentDir):
 	if file.endswith('.root'):
-		rootf += [file]
+		rootf.append(file)
 
-framesroot = [read_root(mostRecentDir+'/'+rf) for rf in rootf]
+if len(rootf)>1:
+	framesroot = [read_root(mostRecentDir+'/'+rf) for rf in rootf]
+	fastdata = pd.concat(framesroot,axis=1)
 
-fastdata = framesroot[0].concat(framesroot[1:],axis=1, ignore_index=True)
+else:
+	fastdata = read_root(mostRecentDir+'/'+rootf[0])
+fastdata['time'] = fastdata['time'] - 2208988800 # Convert from Mac to UNIX time
+fastdata['time'] = pd.to_datetime(fastdata['time'], unit = 's')
 
-print(fastdata.head())
+
+print(fastdata[['integral','height','time']].head())
