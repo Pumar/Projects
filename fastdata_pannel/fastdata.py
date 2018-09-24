@@ -18,23 +18,26 @@ for file in os.listdir(mostRecentDir):
 	if file.endswith('.root'):
 		rootf.append(file)
 
-df = read_root('/home/caio/Documents/processing_data/mx_b_20180716_1742/mx_b_20180716_1742_000000.root', columns=['channel','integral','time','istestpulse','error','baseline','rms','ratio','height'])
-df = df[(df['channel']==3) & (df.error==0)]
+#df = read_root('/home/caio/Documents/processing_data/mx_b_20180716_1742/mx_b_20180716_1742_000000.root', columns=['channel','integral','time','istestpulse','error','baseline','rms','ratio','height'])
 
-plot = df.plot.scatter(x='time',y='integral')
+if len(rootf)>1:
+	framesroot = [read_root(mostRecentDir+'/'+rf, columns=['channel','time','error','integral']) for rf in rootf]
+	df = pd.concat(framesroot,axis=0)
+
+else:
+	df = read_root(mostRecentDir+'/'+rootf[0], columns=['channel','time','error','integral'])
+
+
+df = df[(df['channel']==3) & (df['error']==0)]
+
+df = df[['time','integral']]
+df['time'] = df['time'] - 2208988800
+df['time'] = pd.to_datetime(df['time'], unit = 's')
+
+df = df.set_index('time').resample('10T').count().dropna().reset_index()
+
+plot = df.plot(x='time',y='integral')
 ax = plt.gca()
 fig = plot.get_figure()
 fig.savefig('testfig.png')
-"""
-if len(rootf)>1:
-	framesroot = [read_root(mostRecentDir+'/'+rf, columns=[]) for rf in rootf]
-	fastdata = pd.concat(framesroot,axis=1)
 
-else:
-	fastdata = read_root(mostRecentDir+'/'+rootf[0])
-fastdata['time'] = fastdata['time'] - 2208988800 # Convert from Mac to UNIX time
-fastdata['time'] = pd.to_datetime(fastdata['time'], unit = 's')
-
-
-print(fastdata.columns)
-"""
