@@ -34,16 +34,23 @@ else:
 
 df = df[df.error==0]
 
+df_spec = df.groupby(pd.cut(df['integral'],bins=500)).agg('count').rename(columns={'integral' : 'emission count'}).reset_index()
+df_spec = df_spec.rename(columns={'integral' : 'energy'})
+df_spec['energy'] = df_spec['energy'].astype('str')
+df_spec['energy'] = df_spec['energy'].str.split(',').str[0].str.split('.').str[0].str[1:]
 
+print (df_spec['energy'].head(10))
+
+"""
 for i in range (0,8):
     df_channel = df[(df['channel']==i)]
     df_channel = df_channel[['time','integral']]
     df_channel['time'] = df_channel['time'] - 2208988800
-    df_channel['time'] = pd.to_datetime(df_channel['time'], unit = 's')    
+    df_channel['time'] = pd.to_datetime(df_channel['time'], unit = 's')
     df_channel = df_channel.set_index('time').resample('10T').count().dropna().reset_index()
     df_channel = df_channel.iloc[1:-1]
     plot = df_channel.plot(x='time',y='integral')
     ax = plt.gca()
     fig = plot.get_figure()
     fig.savefig(plotoutDir+ '/' + 'emission_count_channel'+str(i)+'.png')
-
+"""
