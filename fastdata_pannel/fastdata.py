@@ -13,6 +13,11 @@ from root_pandas import read_root
 ### Insert path to most recent directory with fast data
 _,mostRecentDir = sys.argv
 
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+plotoutDir = config['Control']['plotoutdir']
+
 rootf=[]
 for file in os.listdir(mostRecentDir):
 	if file.endswith('.root'):
@@ -27,17 +32,18 @@ if len(rootf)>1:
 else:
 	df = read_root(mostRecentDir+'/'+rootf[0], columns=['channel','time','error','integral'])
 
+df = df[df.error==0]
 
-df = df[(df['channel']==3) & (df['error']==0)]
 
-df = df[['time','integral']]
-df['time'] = df['time'] - 2208988800
-df['time'] = pd.to_datetime(df['time'], unit = 's')
-
-df = df.set_index('time').resample('10T').count().dropna().reset_index()
-
-plot = df.plot(x='time',y='integral')
-ax = plt.gca()
-fig = plot.get_figure()
-fig.savefig('testfig.png')
+for i in range (0,8):
+    df_channel = df[(df['channel']==i)]
+    df_channel = df_channel[['time','integral']]
+    df_channel['time'] = df_channel['time'] - 2208988800
+    df_channel['time'] = pd.to_datetime(df_channel['time'], unit = 's')    
+    df_channel = df_channel.set_index('time').resample('10T').count().dropna().reset_index()
+    df_channel = df_channel.iloc[1:-1]
+    plot = df_channel.plot(x='time',y='integral')
+    ax = plt.gca()
+    fig = plot.get_figure()
+    fig.savefig(plotoutDir+ '/' + 'emission_count_channel'+str(i)+'.png')
 

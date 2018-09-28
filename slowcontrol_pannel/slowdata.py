@@ -16,7 +16,7 @@ _,mostRecentDir = sys.argv
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-plotoutDir = config['SlowControl']['plotoutdir']
+plotoutDir = config['Control']['plotoutdir']
 
 def getconfigrange(section, value):
     return eval(config[section][value])
