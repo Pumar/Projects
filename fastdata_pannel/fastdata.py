@@ -23,7 +23,6 @@ for file in os.listdir(mostRecentDir):
 	if file.endswith('.root'):
 		rootf.append(file)
 
-#df = read_root('/home/caio/Documents/processing_data/mx_b_20180716_1742/mx_b_20180716_1742_000000.root', columns=['channel','integral','time','istestpulse','error','baseline','rms','ratio','height'])
 
 if len(rootf)>1:
 	framesroot = [read_root(mostRecentDir+'/'+rf, columns=['channel','time','error','integral']) for rf in rootf]
@@ -34,38 +33,25 @@ else:
 
 df = df[df.error==0]
 
-df=df[df.channel==3]
-df_spec = df.groupby(pd.cut(df['integral'],bins=500)).agg('count').rename(columns={'integral' : 'emission_count'}).reset_index()
-df_spec = df_spec.rename(columns={'integral' : 'energy'})
-df_spec['energy'] = df_spec['energy'].astype('str')
-df_spec['energy'] = df_spec['energy'].str.split(',').str[0].str.split('.').str[0].str[1:].astype('int')
-df_spec = df_spec[['energy','emission_count']]
-plot2 = df_spec.plot(x='energy',y='emission_count')
-ax2 = plt.gca()
-fig2 = plot2.get_figure()
-fig2.savefig(plotoutDir+'/' + 'spectrum_channel.png')
-"""
-for i in range (0,8):
+channel_label = ['Cs-137','Cs-137','Co-60','Co-60','Background','Background','Ti-44','Ti-44']
+
+for label,i in zip(channel_label,range (0,8)):
     df_channel = df[(df['channel']==i)][['time','integral']]
-    #Putting together the spectrum
-    df_spec = df_channel.groupby(pd.cut(df['integral'],bins=500)).agg('count').rename(columns={'integral' : 'emission_count'}).reset_index()
-	df_spec = df_spec.rename(columns={'integral' : 'energy'})
-	df_spec['energy'] = df_spec['energy'].astype('str')
-	df_spec['energy'] = df_spec['energy'].str.split(',').str[0].str.split('.').str[0].str[1:].astype('int')
-	df_spec = df_spec[['energy','emission_count']]
-	#Emission rate
+    df_spec = df_channel.groupby(pd.cut(df_channel['integral'],bins=500)).agg('count').rename(columns={'integral' : '#emission'}).reset_index()
+    df_spec = df_spec.rename(columns={'integral' : 'energy'})
+    df_spec['energy'] = df_spec['energy'].astype('str')
+    df_spec['energy'] = df_spec['energy'].str.split(',').str[0].str.split('.').str[0].str[1:].astype('int')
+    df_spec = df_spec[['energy','#emission']]
     df_channel['time'] = df_channel['time'] - 2208988800
     df_channel['time'] = pd.to_datetime(df_channel['time'], unit = 's')
-    df_channel = df_channel.set_index('time').resample('10T').count().dropna().reset_index()
+    df_channel = df_channel.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : '#emission'})
     df_channel = df_channel.iloc[1:-1]
-    #Plotting for both regimes and all 8 channels
-    plot1 = df_channel.plot(x='time',y='integral')
-    ax1 = plt.gca()
+    plot1 = df_channel.plot(x='time',y='#emission', title=label+' - channel '+str(i))
+    plt.ylabel('Emissions Count')
     fig1 = plot1.get_figure()
-    fig1.savefig(plotoutDir+ '/' + 'emission_count_channel'+str(i)+'.png')
-    plot2 = df_spec.plot(x='energy',y='emission_count')
-    ax2 = plt.gca()
-    ax1.ylabel('emission count')
+    fig1.savefig(plotoutDir+ '/emissions_' + label+'_channel'+str(i)+'.png')
+    plot2 = df_spec.plot(x='energy',y='#emission', title = label+' - channel '+str(i))
+    plt.ylabel('Emission Count')
     fig2 = plot2.get_figure()
-    fig2.savefig(plotoutdir+'/' + 'spectrum_channel'+str(i)+'.png')
-"""
+    fig2.savefig(plotoutDir+'/spectrum_'+label+'_channel'+str(i)+'.png')
+
