@@ -30,26 +30,23 @@ if len(rootf)>1:
 else:
 	df = read_root(mostRecentDir+'/'+rootf[0], columns=['channel','time','error','integral'])
 
-df = df[(df.error==0) & (df.integral>0)]
+def perc_error(dframe):
+    return 
+
+df = df[(df.integral>0)]
 
 channel_label = ['Cs-137','Cs-137','Co-60','Co-60','Background','Background','Ti-44','Ti-44']
 
-for label,i in zip(channel_label,range (0,8)):
+for label,i in zip(channel_label,range (0,1)):
     df_channel = df[(df['channel']==i)][['time','integral']]
     df_spec = df_channel.groupby(pd.cut(df_channel['integral'],bins=500)).agg('count').rename(columns={'integral' : '#emission'}).reset_index()
     df_spec = df_spec.rename(columns={'integral' : 'energy'})
     df_spec['energy'] = df_spec['energy'].astype('str')
     df_spec['energy'] = df_spec['energy'].str.split(',').str[0].str.split('.').str[0].str[1:].astype('int')
     df_spec = df_spec[['energy','#emission']]
-    df_channel['time'] = df_channel['time'] - 2208988800
-    df_channel['time'] = pd.to_datetime(df_channel['time'], unit = 's')
-    df_channel = df_channel.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : '#emission'})
-    df_channel = df_channel.iloc[1:-1]
-    plot1 = df_channel.plot(x='time',y='#emission', title=label+' - channel '+str(i))
-    plt.ylabel('Emissions Count')
-    fig1 = plot1.get_figure()
-    fig1.savefig(plotoutDir+ '/emissions_' + label+'_channel'+str(i)+'.png')
-    plot2 = df_spec.plot(x='energy',y='#emission', title = label+' - channel '+str(i),logy=True)
+    plot2 = df_spec[df_spec['error'==0]].plot(x='energy',y='#emission', title = label+' - channel '+str(i),logy=True)
+    for er in df_spec['error'].unique():
+        df_spec[df_spec['error']==er].plot(x='energy',y='#emission',logy='True')
     plt.ylabel('Emission Count')
     fig2 = plot2.get_figure()
     fig2.savefig(plotoutDir+'/spectrum_'+label+'_channel'+str(i)+'.png')
