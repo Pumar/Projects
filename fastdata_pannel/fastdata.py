@@ -24,11 +24,15 @@ for file in os.listdir(mostRecentDir):
 		rootf.append(file)
 
 
-if len(rootf)>1:
-	framesroot = [read_root(mostRecentDir+'/'+rf, columns=['channel','time','error','integral']) for rf in rootf]
-	df = pd.concat(framesroot,axis=0)
-else:
-	df = read_root(mostRecentDir+'/'+rootf[0], columns=['channel','time','error','integral'])
+def append_dfs(rootf):
+    if len(rootf)>1:
+	    framesroot = [read_root(mostRecentDir+'/'+rf, columns=['channel','time','error','integral']) for rf in rootf]
+	    df = pd.concat(framesroot,axis=0)
+    else:
+	    df = read_root(mostRecentDir+'/'+rootf[0], columns=['channel','time','error','integral'])
+    return df
+
+dataframe = append_dfs()
 
 df = df[(df.error==0) & (df.integral>0)]
 

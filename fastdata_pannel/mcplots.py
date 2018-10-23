@@ -11,33 +11,39 @@ import numpy as np
 from root_pandas import read_root
 
 ### Insert path to most recent directory with fast data
+"""
 _,mostRecentDir = sys.argv
-
+"""
 config = configparser.ConfigParser()
 config.read('config.ini')
 
 plotoutDir = config['Control']['plotoutdir']
-
+"""
 rootf=[]
 for file in os.listdir(mostRecentDir):
 	if file.endswith('.root'):
 		rootf.append(file)
 
-
-def append_dfs():
+def append_dfs(dirpath):
     if len(rootf)>1:
-	    framesroot = [read_root(mostRecentDir+'/'+rf, columns=['channel','time','error','integral']) for rf in rootf]
+	    framesroot = [read_root(mostRecentDir+'/'+rf, columns=['channel','time','error','integral']) for rf in dirpath]
 	    df = pd.concat(framesroot,axis=0)
     else:
 	    df = read_root(mostRecentDir+'/'+rootf[0], columns=['channel','time','error','integral'])
     return df
+"""
+def get_mc_sims(channel):
+    if channel == 0 or channel == 1:
+        return read_root(os.getcwd()+'/monte_carlo/MC_cs137_modulation.root')
+    elif channel == 2 or channel == 3:
+        return read_root(os.getcwd()+'/monte_carlo/MC_co60_modulation.root')
+    elif channel == 6 or channel == 7:
+        return read_root(os.getcwd()+'/monte_carlo/MC_ti44_modulation.root')
+    
 
-dataframe = append_dfs()
+#dataframe = append_dfs()
 
-
-dataframe = dataframe[dataframe.integral>0]
-
-channel_label = ['Cs-137','Cs-137','Co-60','Co-60','Background','Background','Ti-44','Ti-44']
+#df = df[(df.error==0) & (df.integral>0)]
 
 def timedelta(df):
     df['time'] = df['time'] - 2208988800
@@ -64,27 +70,12 @@ def plot_spectra(df,channel):
     df_spec_e.plot(x='energy',y='#emission',logy=True, ax = ax)
     ax.legend(['Error free emissions','With error'])
     plt.ylabel('Rate (Hz) / ' +str( ((df_spec['energy'].max()-df_spec['energy'].min())/500) )+' KeV' )
-    plt.xlabel('Energy (KeV)')
     plt.savefig(plotoutDir+'/test_spectra_cs.png')
 
-plot_spectra(dataframe,0)
+df  = get_mc_sims(0)
+plt.figure()
+df.plot()
+plt.savefig(pltoutDir+'/mc_plot_cs.png')
 
-"""
-for label,i in zip(channel_label,range (0,1)):
-    df_channel = df[(df['channel']==i)][['time','integral']]
-    df_spec = df_channel.groupby(pd.cut(df_channel['integral'],bins=500)).agg('count').rename(columns={'integral' : '#emission'}).reset_index()
-    df_spec = df_spec.rename(columns={'integral' : 'energy'})
-    df_spec['energy'] = df_spec['energy'].astype('str')
-    df_spec['energy'] = df_spec['energy'].str.split(',').str[0].str.split('.').str[0].str[1:].astype('int')
-    df_spec = df_spec[['energy','#emission']]
-    for er in df_spec['error'].unique():
-        if er==0:
-            dfe = df_spec[df_spec['error']==0]
-            plot2 = dfe.plot(x='energy',y='#emission', title = label+' - channel '+str(i),logy=True)
-        else:
-            dfe = df_spec[df_spec['error']==er]
-            dfe.plot(x='energy',y='#emission',logy='True')
-    plt.ylabel('Emission Count')
-    fig2 = plot2.get_figure()
-    fig2.savefig(plotoutDir+'/spectrum_'+label+'_channel'+str(i)+'.png')
-"""
+
+
