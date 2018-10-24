@@ -1,3 +1,7 @@
+#include <iostream>
+#include <cmath>
+using namespace std;
+
 void h12ascii (TH1* h)
 {
    Int_t n = h->GetNbinsX();

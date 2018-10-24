@@ -56,7 +56,7 @@ def specdf(df,channel):
     df['#emission'] = df['#emission']/(td)
     return df
 
-def plot_spectra(df,channel):
+def plot_log_spectra(df,channel):
     df_spec = specdf(df[df.error==0],channel)
     df_spec_e = specdf(df[df.error!=0],channel)
     plt.figure()
@@ -67,7 +67,7 @@ def plot_spectra(df,channel):
     plt.xlabel('Energy (KeV)')
     plt.savefig(plotoutDir+'/test_spectra_cs.png')
 
-plot_spectra(dataframe,0)
+plot_log_spectra(dataframe,0)
 
 """
 for label,i in zip(channel_label,range (0,1)):
