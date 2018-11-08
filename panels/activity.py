@@ -41,10 +41,16 @@ def get_mc_arr(channel):
     elif channel == 6 or channel == 7:
         return pd.read_csv(os.getcwd()+'/monte_carlo/ti44.csv', header = None, names = ['energy','Count']),(430,1720)
 
+
 def timedelta(df):
     df['time'] = df['time'] - 2208988800
     df['time'] = pd.to_datetime(df['time'], unit = 's')
     return (df['time'].min()-df['time'].max()).seconds
+
+def time_conversion(df):
+    df['time'] = df['time'] - 2208988800
+    df['time'] = pd.to_datetime(df['time'], unit = 's')
+    return df
 
 def specdf(df,channel):
     df = df[(df['channel']==channel)][['time','integral']]
@@ -64,13 +70,12 @@ def plot_log_spectra(df,channel):
     plt.figure()
     ax = df_spec.plot(x='energy',y='Count',logy=True)
     df_spec_e.plot(x='energy',y='Count',logy=True, ax = ax)
-    #inset_ax = inset_axes(ax,  width="50%",height=1.0, loc=1)
-    #plot = df_spec.plot(x='energy',y='Count')
     ax.legend(['Error free emissions','With error'])
     plt.ylabel('Rate (Hz) / ' +bins+' KeV' )
     plt.xlabel('Energy (KeV)')
-    plt.savefig(plotoutDir+'/spectrum'+str(channel)+'.png')
+    plt.savefig(plotoutDir+'/log_spectrum_channel'+str(channel)+'.png')
     plt.close()
+    return
 
 def plot_spectra(df,channel):
     if channel == 4 or channel == 5:
@@ -87,21 +92,43 @@ def plot_spectra(df,channel):
     ax.legend(['Experimental Peaks','Simulated Peaks'])
     plt.ylabel('Rate (Hz) / ' +bins+' KeV' )
     plt.xlabel('Energy (KeV)')
-    plt.savefig(plotoutDir+'/mc'+str(channel)+'.png')
+    plt.savefig(plotoutDir+'/spectrum_mc_channel'+str(channel)+'.png')
     plt.close()
+    return
 
+def plot_time_series(df,channel):
+    #if chn == 4 or chn == 5:
+        #return
+    df = df[df.error == 0]
+    df = time_conversion(df[df.channel==channel])
+    df_ana = read_root(mostRecentDir.split('mx_')[0] + "analysis/ANA_" + mostRecentDir.split('/')[-2] + '.root', columns = ['rate','drate','time','channel','e'])
+    df_ana = time_conversion(df_ana[(df_ana.channel==channel) & (df_ana.e < 665) & (df_ana.e > 655)])
+    df = df.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
+    df = df.iloc[1:-1]
+    fig,ax = plt.subplots(nrows=2,ncols=1)
+    df.plot(x='time',y='Count',ax=ax[0])
+    df_ana.plot(x='time',y='rate',ax=ax[1])
+    plt.savefig(plotoutDir + '/time_series_channel'+str(channel)+'.png')
+    plt.close()
+    return
+
+### Fetches processed and analyzed dataframes from root sources
 dataframe = append_dfs()
-dataframe = dataframe[dataframe.integral > 0]
 
-dataframe['time'] = dataframe['time'] - 2208988800
-dataframe['time'] = pd.to_datetime(dataframe['time'], unit = 's')
 
-print(dataframe[dataframe.channel==2].head(20))
+## Energy filter ( energy > 0 KeV )
+dataframe = dataframe[(dataframe.integral > 0) & (dataframe.error == 0) & (dataframe.channel==0)]
+
+dataframe = time_conversion(dataframe[dataframe.channel == 1])
+dataframe = dataframe.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
+print(dataframe)
+
+
 """
-for i in range(0,8):
-    plot_spectra(dataframe,i)
-    plot_log_spectra(dataframe,i)
+for chn in range(0,8):
+    plot_spectra(dataframe,chn)
+    plot_log_spectra(dataframe,chn)
+    plot_time_series(dataframe,chn)
 """
-
 
 
