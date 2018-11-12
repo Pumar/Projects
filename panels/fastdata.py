@@ -22,6 +22,15 @@ plotoutDir = config['Control']['plotoutdir']
 
 channel_label = ['Cs-137','Cs-137','Co-60','Co-60','Background','Background','Ti-44','Ti-44']
 
+peaks = [[661.7],
+         [661.7],
+         [1173,1332],
+         [1173,1332],
+         [0],
+         [0],
+         [511,1157,1668],
+         [511,1157,1668]]
+
 rootf=[]
 for file in os.listdir(mostRecentDir):
 	if file.endswith('.root'):
@@ -84,9 +93,7 @@ def plot_spectra(df,channel):
     if channel == 4 or channel == 5:
         bins = str((df_spec['energy'].max()-df_spec['energy'].min())/500)
         plt.figure()
-        ax = df_spec.plot(x='energy',y='Count',logy=True)
-        df_spec_e.plot(x='energy',y='Count',logy=True, ax = ax, title = channel_label[channel]+' - channel '+str(channel))
-        ax.legend(['Error free emissions','With error'])
+        df_spec.plot(x='energy',y='Count')
         plt.ylabel('Rate (Hz) / ' +bins+' KeV' )
         plt.xlabel('Energy (KeV)')
         plt.savefig(plotoutDir+'/spectrum_mc_channel'+str(channel)+'.png')
@@ -110,21 +117,23 @@ def plot_spectra(df,channel):
 def plot_time_series(df,df_ana,channel):
     df = df[df.error == 0]
     df = time_conversion(df[df.channel==channel])
-    df_ana = df_ana[(df_ana.channel==channel) & (df_ana.e < 665) & (df_ana.e > 655)]
     df = df.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
     df = df.iloc[1:-1]
     fig,ax = plt.subplots(nrows=2,ncols=1)
-    df.plot(x='time',y='Count',ax=ax[0], title = channel_label[channel]+' - channel '+str(channel), label = 'Total emission activity / 10 min')
-    df_ana.plot(x='time',y='rate',ax=ax[1], label = 'Rate (Hz)')
+    df.plot(x='time',y='Count',ax=ax[1])
+    df_ana.plot(x='time',y='rate',xticks=[],kind='scatter', ax=ax[0], label = 'Rate (Hz)', title = channel_label[channel]+' - channel '+str(channel),)
     plt.xlabel('Time')
     plt.ylabel('Count')
     plt.savefig(plotoutDir + '/time_series_channel'+str(channel)+'.png')
     plt.close()
     return
 
-def plot_activity(df):
+def plot_activity(df,channel):
     df = df[df.error == 0]
     df = time_conversion(df[df.channel==channel])
+    df = df.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
+    df = df.iloc[1:-1]
+    plt.figure()
     df.plot(x='time',y='Count',title = channel_label[channel]+' - channel '+str(channel) )
     plt.ylabel('Count')
     plt.xlabel('Time')
@@ -137,20 +146,16 @@ dataframe = append_dfs()
 analyzed_dataframe = read_root(mostRecentDir.split('mx_')[0] + "analysis/ANA_" + mostRecentDir.split('/')[-2] + '.root', columns = ['rate','drate','time','channel','e'])
 
 ## Energy filter ( energy > 0 KeV )
-#dataframe = dataframe[dataframe.integral > 0]
+dataframe = dataframe[dataframe.integral > 0]
 
-dataframe = dataframe[(dataframe.integral > 0) & (dataframe.error == 0)]
 
-plot_time_series(dataframe[dataframe.channel==2], analyzed_dataframe[analyzed_dataframe.channel==2] ,2)
-
-"""
 for chn in range(0,8):
-    plot_spectra(dataframe[dataframe.channel==chn],chn)
-    plot_log_spectra(dataframe[dataframe.channel==chn],chn)
+    plot_spectra(dataframe,chn)
+    plot_log_spectra(dataframe,chn)
     if chn == 4 or chn == 5:
-        plot_activity(dataframe[dataframe.channel==chn],chn)
+        plot_activity(dataframe,chn)
     else:
-        plot_time_series(dataframe[dataframe.channel==chn], analyzed_dataframe[analyzed_dataframe.channel==chn] ,chn)
-"""
+        plot_time_series(dataframe,analyzed_dataframe[analyzed_dataframe.channel==chn],chn)
+
 
 
