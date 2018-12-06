@@ -80,7 +80,7 @@ def plot_log_spectra(df,channel):
     bins = str((df_spec['energy'].max()-df_spec['energy'].min())/500)
     plt.figure()
     ax = df_spec.plot(x='energy',y='Count',logy=True)
-    df_spec_e.plot(x='energy',y='Count',logy=True, ax = ax, title = channel_label[channel]+' - channel '+str(channel))
+    df_spec_e.plot(x='energy',y='Count',logy=True, c='r' , ax = ax, title = channel_label[channel]+' - channel '+str(channel))
     ax.legend(['Error free emissions','With error'])
     plt.ylabel('Rate (Hz) / ' +bins+' KeV' )
     plt.xlabel('Energy (KeV)')
@@ -103,7 +103,9 @@ def plot_spectra(df,channel):
         bins = str((df_spec['energy'].max()-df_spec['energy'].min())/500)
         df_spec = df_spec[(df_spec['energy'] >= lims[0]) & (df_spec['energy'] <= lims[1])]
         df_mc = df_mc[(df_mc['energy'] >= lims[0]) & (df_mc['energy'] <= lims[1])]
+        ### Scales the simulation data by peaks to match the experimental peaks
         df_mc['Count'] = (df_spec['Count'].max()/df_mc['Count'].max())*df_mc['Count']
+        ###
         plt.figure()
         ax = df_spec.plot(x='energy',y='Count', title = channel_label[channel]+' - channel '+str(channel))
         df_mc.plot(x='energy',y='Count', ax = ax)
