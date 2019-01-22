@@ -13,6 +13,12 @@ from root_pandas import read_root
 from scipy.optimize import curve_fit
 
 
+##############################################################################################################################
+#
+#
+###                                                GLOBAL VARIABLES
+#
+#
 plotoutDir = "/home/caio/Documents/Plots/"
 
 channel_label = ['Cs-137','Cs-137','Co-60','Co-60']
@@ -27,21 +33,28 @@ hv_file_list = ['/home/caio/Documents/processing_data/HV_Scan_2018_12/Processed/
                 '/home/caio/Documents/processing_data/HV_Scan_2018_12/Processed/mx_b_20181211_1628',
                 '/home/caio/Documents/processing_data/HV_Scan_2018_12/Processed/mx_b_20181211_1644']
 
-sig = r'$\sigma$'
-mu = r'$\mu$'
-"""
-### Care to change to corrrect hv0
-hv_file_list = ['/home/caio/Documents/processing_data/HV_Scan_2018_12/Processed/mx_b_20190115_1737']
-hv0 = (645, 635, 875, 725)
-###
-"""
 hv0 = (720, 710, 950, 800)
 hv_step = 25
-
-
+#
+#
+#
 ##############################################################################################################################
 
 def append_dfs(root_dir):
+	###########################################################################
+	### Description:
+	#
+	## Takes each indivisual root file that's been processed (Processing - Joran version), creates a Pandas dataframe and appends all of them into a single Dataframe.
+	#
+	### Input:
+	#
+	## root_dir - File directory (list of strings)
+	#
+	### Returns:
+	#
+	## df - appended Dataframe (pd.DataFrame)
+	#
+	###########################################################################
     if len(rootf)>1:
 	    framesroot = [read_root(root_dir+'/'+rf, columns=['channel','time','error','integral']) for rf in rootf]
 	    df = pd.concat(framesroot,axis=0)
@@ -50,7 +63,22 @@ def append_dfs(root_dir):
     return df
 
 def specdf(df,channel):
-    df = df[(df['channel']==channel)][['time','integral']]
+	###########################################################################
+	### Description:
+	#
+	## Bins events into evenly sized energy ranges that depend on the overall range
+	#
+	### Input:
+	#
+	## df - dataframe which will have its data binned to have a spectral format (pd.DataFrame)
+	## channel - channel number corresponding to the detector (int)
+	#
+	### Returns:
+	#
+	## df - transformed dataframe (pd.DataFrame)
+	#
+	###########################################################################
+	df = df[(df['channel']==channel)][['time','integral']]
     df = df.groupby(pd.cut(df['integral'],bins=700)).agg('count').rename(columns={'integral' : 'Count'}).reset_index()
     df = df.rename(columns={'integral' : 'energy'})
     df['energy'] = df['energy'].astype('str')
@@ -61,18 +89,52 @@ def specdf(df,channel):
     return df
 
 def gauss(x, *p):
+	##########################################################
+	### Gaussian function
+	#
+	## Check https://en.wikipedia.org/wiki/Gaussian_function
+	#
+	### Input:
+	#
+	## A, mu, sigma - fit params
+	#
+	##########################################################
     A, mu, sigma = p
     return A*np.exp(-(x-mu)**2/(2.*sigma**2))
 
 def exp_gauss(x, *p):
+	##########################################################
+	### Gaussian + exponential function
+	#
+	### Input:
+	#
+	## A, mu, sigma, a, b - fit params
+	#
+	##########################################################
     A, mu, sigma, a, b = p
     return (A*np.exp(-(x-mu)**2/(2.*sigma**2)) +a*np.exp(-b*x))
 
 def exp_double_gauss(x, *p):
+	##########################################################
+	### Gaussian + Gaussian + exponential function
+	#
+	### Input: 
+	#
+	## A1, mu1, sigma1, A2, mu2, sigma2, a, b - fit params
+	#
+	##########################################################
     A1, mu1, sigma1, A2, mu2, sigma2, a, b = p
     return ((A1*np.exp(-(x-mu1)**2/(2.*sigma1**2))) + (A2*np.exp(-(x-mu2)**2/(2.*sigma2**2))) + (a*np.exp(-b*x)))
 
 def exp_fit(x, *p):
+	##########################################################
+	### Exponential function
+	#
+	### Input:
+	#
+	## a, b - fit params
+	#
+	##########################################################
     a, b = p
     return a*np.exp(-b*x)
 
@@ -80,12 +142,20 @@ def peak_width(df,channel):
     ###########################################################################
     #
     ### Input:
-    # df - dataframe with data to be fit (pd.DataFrame)
-    # channel - channel number corresponding to the detector (int)
-    ##
+    #
+    ## df - dataframe with data to be fit (pd.DataFrame)
+    ## channel - channel number corresponding to the detector (int)
+    #
+    ## Returns:
+    #
+    ## coeff - coefficients of the function that was fit to the data inside df (list of floats)
+    ## perr - error associated with each coefficient fit (list of floats)
+    ## dm - optimize parameter, built as sigma/mu (float)
+    ## error propagator - calculates and returns the propagation of the error of the function sigma/mu (float)
+    #
     ### Obs:
-    ### f = A/B, used approx from https://www.sagepub.com/sites/default/files/upm-binaries/6427_Chapter_4__Lee_(Analyzing)_I_PDF_6.pdf
-    ###check wiki page for error propagation
+    ## f = A/B, used approx from https://www.sagepub.com/sites/default/files/upm-binaries/6427_Chapter_4__Lee_(Analyzing)_I_PDF_6.pdf
+    ## check wiki page for error propagation
     #
     ###########################################################################
     df_spec = specdf(df[df.error==0],channel)
@@ -98,6 +168,8 @@ def peak_width(df,channel):
         coeff, var_matrix = curve_fit(exp_gauss, df_spec['energy'], df_spec['Count'], p0=p0, bounds=bounds, maxfev = 5000)
         perr = np.sqrt(np.diag(var_matrix))
         dm = coeff[2]/coeff[1]
+        ### f = A/B, used approx from https://www.sagepub.com/sites/default/files/upm-binaries/6427_Chapter_4__Lee_(Analyzing)_I_PDF_6.pdf
+        #check wiki page for error propagation
         return coeff, perr, dm, np.absolute(dm)*np.sqrt(np.power(perr[2]/coeff[2],2)+np.power(perr[1]/coeff[1],2))
     else:
         df_spec = df_spec[df_spec['energy']>(1000)]
@@ -111,8 +183,26 @@ def peak_width(df,channel):
         ### f = A/B, used approx from https://www.sagepub.com/sites/default/files/upm-binaries/6427_Chapter_4__Lee_(Analyzing)_I_PDF_6.pdf
         #check wiki page for error propagation
         return coeff, perr, dm, np.absolute(dm)*np.sqrt(np.power(perr[2]/coeff[2],2)+np.power(perr[1]/coeff[1],2))
-
+ 
 def plot_calib(hv,de,err,channel):
+	###########################################################################
+	### Description:
+	#
+	## Plots the accuracy metric (sigma/mu) with error bars against the high voltage values, that correspond to each to a different data acquisition file. 
+	## File name ex: mx_b_20181210_1857
+    #
+    ### Inputs:
+    #
+    ## hv - high voltage values (list of ints)
+    ## de - sigma/mu (list of floats)
+    ## err - error propagated through the function sigma/mu (list of floats)
+    ## channel - channel number corresponding to the detector (int)
+    #
+    ### Returns:
+    #
+    ## None
+    #
+    ###########################################################################
     title = 'deltaE_X_highvoltage_channel'+str(channel)+'.png'
     d = {'hv' : hv, 'de' : de, 'err' : err}
     df = pd.DataFrame(data=d)
@@ -124,6 +214,25 @@ def plot_calib(hv,de,err,channel):
     plt.close()
 
 def plot_spectra(df,channel,hv,pf, pf_err):
+	###########################################################################
+	### Description:
+	#
+	## Plots the spectra for each channel in a specific hv value and its fit
+	## It's mostly a visual to check goodness of fit.
+    #
+    ### Inputs:
+    #
+    ## df - Dataframe that had its data fit, it is utilized to be compared against the plot of the fit function (pd.DataFrame)
+    ## hv - high voltage values (list of ints)
+    ## channel - channel number corresponding to the detector (int)
+    ## pf - coefficients for the fit function (list of float)
+    ## pf_err - error associated with each parameter pf[i] (list of float)
+    #
+    ### Returns:
+    #
+    ## None
+    #
+    ###########################################################################
     title = 'hv'+str(hv)
     df_spec = specdf(df[df.error==0],channel)
     Emax = int((df_spec[df_spec['Count']==df_spec['Count'].max()]['energy']).astype('int'))
@@ -149,7 +258,11 @@ def plot_spectra(df,channel,hv,pf, pf_err):
     plt.savefig(plotoutDir + '/hv_scan/spectra/'+'detector'+str(channel)+'_'+title+'.png')
     plt.close()
 
-
+###########################################################################
+#
+### Main Loop that calls the functions
+#
+###########################################################################
 for chn in range(0,4):
     hv_l = []
     de_l = []
@@ -159,7 +272,7 @@ for chn in range(0,4):
         for file in os.listdir(mod_dir):
 	        if file.endswith('.root'):
 		        rootf.append(file)
-        ## Create dataframe for every data acquisition and overwrite previous one
+        ## Create dataframe for every data acquisition (separate file names) and overwrite previous one
         dataframe = append_dfs(mod_dir)
         hv_l.append(hv0[chn]-hv_file_list.index(mod_dir)*hv_step)
         coeff, coeff_err, de_mu,de_mu_err = peak_width(dataframe,chn)
