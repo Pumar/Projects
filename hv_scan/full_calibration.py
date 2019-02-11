@@ -25,6 +25,7 @@ channel_label = ['Cs-137','Cs-137','Co-60','Co-60']
 
 Cs_peaks = (661.7)
 Co_peaks = (1173.2, 1332.5)
+Ti_peaks = (511.,1157.02)
 
 hv_file_list = ['/home/caio/Documents/processing_data/HV_Scan_2018_12/Processed/mx_b_20181210_1857',
                 '/home/caio/Documents/processing_data/HV_Scan_2018_12/Processed/mx_b_20181210_1914',
