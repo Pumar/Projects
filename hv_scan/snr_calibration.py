@@ -171,9 +171,13 @@ def peak_width(df,channel):
         coeff, var_matrix = curve_fit(exp_gauss, df_spec['energy'], df_spec['Count'], p0=p0, bounds=bounds, maxfev = 5000)
         perr = np.sqrt(np.diag(var_matrix))
         dm = coeff[2]/coeff[1]
+        #
+        print('cs_exp = '+str(coeff[-2]))
+        #
         ### f = A/B, used approx from https://www.sagepub.com/sites/default/files/upm-binaries/6427_Chapter_4__Lee_(Analyzing)_I_PDF_6.pdf
         #check wiki page for error propagation
-        return coeff, perr, dm, np.absolute(dm)*np.sqrt(np.power(perr[2]/coeff[2],2)+np.power(perr[1]/coeff[1],2))
+        #return coeff, perr, dm, np.absolute(dm)*np.sqrt(np.power(perr[2]/coeff[2],2)+np.power(perr[1]/coeff[1],2))
+        return df_spec['Count'].max().astype('float'),coeff, perr, dm, np.absolute(dm)*np.sqrt(np.power(perr[2]/coeff[2],2)+np.power(perr[1]/coeff[1],2))
     else:
         df_spec = df_spec[df_spec['energy']>(1000)]
         df_spec = df_spec[df_spec['energy']<(Co_peaks[1]+350)]  
@@ -185,7 +189,18 @@ def peak_width(df,channel):
         dm = coeff[2]/coeff[1]
         ### f = A/B, used approx from https://www.sagepub.com/sites/default/files/upm-binaries/6427_Chapter_4__Lee_(Analyzing)_I_PDF_6.pdf
         #check wiki page for error propagation
-        return coeff, perr, dm, np.absolute(dm)*np.sqrt(np.power(perr[2]/coeff[2],2)+np.power(perr[1]/coeff[1],2))
+        #return coeff, perr, dm, np.absolute(dm)*np.sqrt(np.power(perr[2]/coeff[2],2)+np.power(perr[1]/coeff[1],2))
+        return df_spec['Count'].max().astype('float'),coeff, perr, dm, np.absolute(dm)*np.sqrt(np.power(perr[2]/coeff[2],2)+np.power(perr[1]/coeff[1],2))
+
+def exponential_background(exp_coeff, lin_coeff, min_lim, max_lim):
+    return ((lin_coeff/exp_coeff)*(np.exp(-exp_coeff*min_lim) - np.exp(-exp_coeff*max_lim)))
+
+def snr(signal, background):
+    return signal/np.sqrt(background)
+
+def snr_test(signal,N):
+    return signal/np.sqrt(N)
+    
  
 def plot_calib(hv,de,err,channel):
     ###########################################################################
@@ -253,13 +268,27 @@ def plot_spectra(df,channel,hv,pf, pf_err):
     Emax = int((df_spec[df_spec['Count']==df_spec['Count'].max()]['energy']).astype('int'))
     Cmax = df_spec['Count'].max()
     plt.figure()
-    df_spec.plot(x='energy',y='Count',yerr= 'y_err', kind='scatter',s=4,color='k', title = channel_label[channel-4] + ' - Detector '+str(channel)+' with Voltage = '+str(hv) + ' V')
+    df_spec.plot(x='energy',y='Count',yerr= 'y_err', kind='scatter', s=4, color='k', title = channel_label[channel-4] + ' - Detector '+str(channel)+' with Voltage = '+str(hv) + ' V')
     plt.plot(e_range, fit,color='r')
     plt.text(Emax*mult_val, Cmax/2,'Main Energy Peak'+'\n'+r'$\mu$ = '+str(int(pf[1]))+r' $\pm$'+str(pf_err[1])[:3]+' keV'+ '\n' + r'$\sigma$ = '+str(coeff[2])[:5]+r' $\pm$'+str(pf_err[2])[:4] +' keV')
     plt.xlabel('Energy (keV)')
     plt.ylabel('Event Count')
     plt.savefig(plotoutDir + '/hv_scan/spectra/'+'detector'+str(channel)+'_'+title+'.png')
     plt.close()
+
+def plot_snr(hv,snr,channel):
+    title = 'snr_hv_channel' + str(channel) + '.png'
+    d = {'hv' : hv, 'snr' : snr}
+    df = pd.DataFrame(data=d)
+    plt.figure()
+    df.plot(x='hv',y='snr', kind='scatter',title = 'Signal to Noise Ratio X High Voltage ')
+    plt.xlabel('Voltage (V)')
+    plt.ylabel('SNR (unitless)')
+    plt.savefig(plotoutDir + '/hv_scan/'+title)
+    plt.close()
+
+
+
 
 ###########################################################################
 #
@@ -270,6 +299,7 @@ for chn in range(4,8):
     hv_l = []
     de_l = []
     err_l = []
+    snr_l = []
     for mod_dir in hv_file_list:
         rootf=[]
         for file in os.listdir(mod_dir):
@@ -278,12 +308,15 @@ for chn in range(4,8):
         ## Create dataframe for every data acquisition (separate file names) and overwrite previous one
         dataframe = append_dfs(mod_dir)
         hv_l.append(hv0[chn-4]-hv_file_list.index(mod_dir)*hv_step)
-        coeff, coeff_err, de_mu,de_mu_err = peak_width(dataframe,chn)
+        n_max,coeff, coeff_err, de_mu,de_mu_err = peak_width(dataframe,chn)
+        #snr_l.append(snr(coeff[0],exponential_background(coeff[-1], coeff[-2], coeff[1] - coeff[2], coeff[1] + coeff[2])))
+        snr_l.append(snr_test(coeff[0],n_max))
         err_l.append(de_mu_err)
         de_l.append(de_mu)
         hv_s = hv0[chn-4]-hv_file_list.index(mod_dir)*hv_step
         plot_spectra(dataframe,chn,hv_s,coeff, coeff_err)
     plot_calib(hv_l,de_l,err_l,chn)
+    plot_snr(hv_l,snr_l,chn)
     print('channel'+str(chn)+' plotted')
         
     
