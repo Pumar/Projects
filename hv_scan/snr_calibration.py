@@ -275,6 +275,7 @@ def plot_spectra(df,channel,hv,pf, pf_err):
     plt.ylabel('Event Count')
     plt.savefig(plotoutDir + '/hv_scan/spectra/'+'detector'+str(channel)+'_'+title+'.png')
     plt.close()
+    return
 
 def plot_snr(hv,snr,channel):
     title = 'snr_hv_channel' + str(channel) + '.png'
@@ -286,7 +287,7 @@ def plot_snr(hv,snr,channel):
     plt.ylabel('SNR (unitless)')
     plt.savefig(plotoutDir + '/hv_scan/'+title)
     plt.close()
-
+    return
 
 
 
