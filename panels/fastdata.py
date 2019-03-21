@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.use('Agg') # Don't try to use X forwarding for plots
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import matplotlib.dates as mdates
 
 import pandas as pd
 import numpy as np
@@ -20,16 +21,20 @@ config.read('config.ini')
 
 plotoutDir = config['Control']['plotoutdir']
 
-channel_label = ['Cs-137','Cs-137','Co-60','Co-60','Background','Background','Ti-44','Ti-44']
+channel_label = ['Background','Background','Cs-137','Cs-137','Ti-44','Ti-44','Co-60','Co-60']
 
-peaks = [[661.7],
-         [661.7],
-         [1173,1332],
-         [1173,1332],
-         [0],
+peaks = [[0],
          [0],
          [511,1157,1668],
-         [511,1157,1668]]
+         [511,1157,1668],
+         [661.7],
+         [661.7],
+         [1173,1332],
+         [1173,1332]]
+
+energy_bins = 500
+
+source_kev_ranges = (2500,2500,1500,3000)
 
 rootf=[]
 for file in os.listdir(mostRecentDir):
@@ -44,15 +49,6 @@ def append_dfs():
 	    df = read_root(mostRecentDir+'/'+rootf[0], columns=['channel','time','error','integral'])
     return df
 
-def get_mc_arr(channel):
-    if channel == 0 or channel == 1:
-        return pd.read_csv(os.getcwd()+'/monte_carlo/cs137.csv', header = None, names = ['energy','Count']),(580,750)
-    elif channel == 2 or channel == 3:
-        return pd.read_csv(os.getcwd()+'/monte_carlo/co60.csv', header = None, names = ['energy','Count']),(1050,1450)
-    elif channel == 6 or channel == 7:
-        return pd.read_csv(os.getcwd()+'/monte_carlo/ti44.csv', header = None, names = ['energy','Count']),(430,1720)
-
-
 def timedelta(df):
     df['time'] = df['time'] - 2208988800
     df['time'] = pd.to_datetime(df['time'], unit = 's')
@@ -66,7 +62,7 @@ def time_conversion(df):
 def specdf(df,channel):
     df = df[(df['channel']==channel)][['time','integral']]
     td = timedelta(df)
-    df = df.groupby(pd.cut(df['integral'],bins=500)).agg('count').rename(columns={'integral' : 'Count'}).reset_index()
+    df = df.groupby(pd.cut(df['integral'],bins=energy_bins)).agg('count').rename(columns={'integral' : 'Count'}).reset_index()
     df = df.rename(columns={'integral' : 'energy'})
     df['energy'] = df['energy'].astype('str')
     df['energy'] = df['energy'].str.split(',').str[0].str.split('.').str[0].str[1:].astype('int')
@@ -75,89 +71,117 @@ def specdf(df,channel):
     return df
 
 def plot_log_spectra(df,channel):
-    df_spec = specdf(df[df.error==0],channel)
-    df_spec_e = specdf(df[df.error!=0],channel)
-    bins = str((df_spec['energy'].max()-df_spec['energy'].min())/500)
+    df_spec = specdf(df[(df.error==0) & (df.integral < source_kev_ranges[channel//2])],channel)
+    bins = str((df_spec['energy'].max()-df_spec['energy'].min())/energy_bins)
+    colors = ['red','purple','orange','green','yellow','violet','gray']
     plt.figure()
-    ax = df_spec.plot(x='energy',y='Count',logy=True)
-    df_spec_e.plot(x='energy',y='Count',logy=True, c='r' , ax = ax, title = channel_label[channel]+' - channel '+str(channel))
-    ax.legend(['Error free emissions','With error'])
+    ax = df_spec.plot(x='energy',y='Count',  color = 'k', logy=True)
+    for i in df[df['channel'] == channel]['error'].unique():
+        df_spec_e = specdf(df[(df.error==i)],channel)
+        if i == 0:
+            continue
+        else:
+            df_spec_e.plot(x='energy',y='Count',logy=True, c=colors[i-1] , ax = ax, title = channel_label[channel]+' - channel '+str(channel))
+    ax.legend(['Error free emissions','Overflow error','Baseline rms error','ERROR3', 'Double peak error','ERROR5','ERROR6','ERROR7'])
     plt.ylabel('Rate (Hz) / ' +bins+' KeV' )
     plt.xlabel('Energy (KeV)')
+    plt.xlim(0,source_kev_ranges[channel//2])
     plt.savefig(plotoutDir+'/log_spectrum_channel'+str(channel)+'.png')
     plt.close()
     return
 
 def plot_spectra(df,channel):
-    df_spec = specdf(df[df.error==0],channel)
-    if channel == 4 or channel == 5:
-        bins = str((df_spec['energy'].max()-df_spec['energy'].min())/500)
-        plt.figure()
-        df_spec.plot(x='energy',y='Count')
-        plt.ylabel('Rate (Hz) / ' +bins+' KeV' )
-        plt.xlabel('Energy (KeV)')
-        plt.savefig(plotoutDir+'/spectrum_mc_channel'+str(channel)+'.png')
-        plt.close()
-    else:
-        df_mc,lims = get_mc_arr(channel)
-        bins = str((df_spec['energy'].max()-df_spec['energy'].min())/500)
-        df_spec = df_spec[(df_spec['energy'] >= lims[0]) & (df_spec['energy'] <= lims[1])]
-        df_mc = df_mc[(df_mc['energy'] >= lims[0]) & (df_mc['energy'] <= lims[1])]
-        ### Scales the simulation data by peaks to match the experimental peaks
-        df_mc['Count'] = (df_spec['Count'].max()/df_mc['Count'].max())*df_mc['Count']
-        ###
-        plt.figure()
-        ax = df_spec.plot(x='energy',y='Count', title = channel_label[channel]+' - channel '+str(channel))
-        df_mc.plot(x='energy',y='Count', ax = ax)
-        ax.legend(['Experimental Peaks','Simulated Peaks'])
-        plt.ylabel('Rate (Hz) / ' +bins+' KeV' )
-        plt.xlabel('Energy (KeV)')
-        plt.savefig(plotoutDir+'/spectrum_mc_channel'+str(channel)+'.png')
-        plt.close()
-        return
+    df_spec = specdf(df[(df.error==0) & (df.integral < source_kev_ranges[channel//2])],channel)
+    bins = str((df_spec['energy'].max()-df_spec['energy'].min())/energy_bins)
+    plt.figure()
+    df_spec.plot(x='energy',y='Count', color = 'k')
+    plt.ylabel('Rate (Hz) / ' +bins+' KeV' )
+    plt.xlabel('Energy (KeV)')
+    plt.title(channel_label[channel] +' Spectrum - Channel '+str(channel))
+    plt.legend('')
+    plt.savefig(plotoutDir+'/spectrum_channel'+str(channel)+'.png')
+    plt.close()
+    return
 
-def plot_time_series(df,df_ana,channel):
-    df = df[df.error == 0]
-    df = time_conversion(df[df.channel==channel])
-    df = df.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
-    df = df.iloc[1:-1]
-    fig,ax = plt.subplots(nrows=2,ncols=1)
-    df.plot(x='time',y='Count',ax=ax[1])
-    df_ana.plot(x='time',y='rate',xticks=[],kind='scatter', ax=ax[0], label = 'Rate (Hz)', title = channel_label[channel]+' - channel '+str(channel),)
-    plt.xlabel('Time')
-    plt.ylabel('Count')
-    plt.savefig(plotoutDir + '/time_series_channel'+str(channel)+'.png')
+
+def plot_rates(channel):
+    df_ana = read_root(mostRecentDir.split('mx_')[0] + "analysis/ANA_" + mostRecentDir.split('/')[-2] + '.root', columns = ['rate','drate','time','channel','e'])
+    df_ana['e'] = np.where( ((df_ana['e'] > 655) & (df_ana['e'] < 666)), 'cs', np.where( ((df_ana['e'] > 1165) & (df_ana['e'] < 1179)), 'co1', np.where( ((df_ana['e'] > 1320) & (df_ana['e'] < 1340)),'co2', np.where( ((df_ana['e'] > 2495) & (df_ana['e'] < 2515)), 'co3','null' ) ) ) )
+    df_ana['colors'] = np.where(( df_ana['e'] == 'cs') | (df_ana['e'] == 'co1'),0,np.where(df_ana['e']== 'co2', 1,2))
+    df_ana = df_ana[df_ana.channel==channel]
+    colors = ['black','blue','orange']
+    for i in df_ana['colors'].unique():
+        df = df_ana[df_ana['colors']==i]
+        plt.scatter(x=df['time'].values,y=df['rate'].values,c=colors[i])
+        plt.errorbar(x=df['time'].values,y=df['rate'].values,yerr=df['drate'].values,zorder=0, fmt="none",marker="none")     
+    plt.xlabel('Time [s]')
+    plt.ylabel('Peak Rate [Events in peak/s]')
+    #plt.text('Peak rates calculated every '+str()+'s')
+    plt.title(channel_label[channel]+' - channel '+str(channel))
+    plt.savefig(plotoutDir + '/rate_channel'+str(channel)+'.png')
     plt.close()
     return
 
 def plot_activity(df,channel):
     df = df[df.error == 0]
     df = time_conversion(df[df.channel==channel])
-    df = df.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
+    ##time bin in seconds
+    timebin = 600
+    df = df.set_index('time').resample(str(timebin) +'S').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
     df = df.iloc[1:-1]
+    df['error'] = np.sqrt(df['Count'])
     plt.figure()
-    df.plot(x='time',y='Count',title = channel_label[channel]+' - channel '+str(channel) )
+    #df.plot(x='time',y='Count', color="k", marker='.', yerr='error', title = channel_label[channel]+' - channel '+str(channel) )
+    plt.plot([],[])
+    plt.errorbar(x=df['time'].values, y=df['Count'].values, yerr=df['error'].values, fmt='.',color='k')
+    plt.gcf().autofmt_xdate()
+    myFmt = mdates.DateFormatter('%H:%M')
+    plt.gca().xaxis.set_major_formatter(myFmt)
+    plt.title(channel_label[channel]+' - channel '+str(channel))
     plt.ylabel('Count')
     plt.xlabel('Time')
     plt.savefig(plotoutDir + '/time_series_channel'+str(channel)+'.png')
     plt.close()
     return
 
+def plot_err_activity(df,channel,err):
+    df = df[df.error == err]
+    df = time_conversion(df[df.channel==channel])
+    ##time bin in seconds
+    timebin = 600
+    df = df.set_index('time').resample(str(timebin) +'S').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
+    df = df.iloc[1:-1]
+    df['error'] = np.sqrt(df['Count'])
+    plt.figure()
+    #df.plot(x='time',y='Count', color="k", marker='.', yerr='error', title = channel_label[channel]+' - channel '+str(channel) )
+    plt.plot([],[])
+    plt.errorbar(x=df['time'].values, y=df['Count'].values, yerr=df['error'].values, fmt='.',color='k')
+    plt.gcf().autofmt_xdate()
+    myFmt = mdates.DateFormatter('%H:%M')
+    plt.gca().xaxis.set_major_formatter(myFmt)
+    plt.title(channel_label[channel]+' - channel '+str(channel))
+    plt.ylabel('Count')
+    plt.xlabel('Time')
+    plt.savefig(plotoutDir + '/error_'+str(err)+'_activity_channel'+str(channel)+'.png')
+    plt.close()
+    return
+
 ### Fetches processed dataframe from root source
 dataframe = append_dfs()
-analyzed_dataframe = read_root(mostRecentDir.split('mx_')[0] + "analysis/ANA_" + mostRecentDir.split('/')[-2] + '.root', columns = ['rate','drate','time','channel','e'])
 
-## Energy filter ( energy > 0 KeV )
+
+## Energy filter to mask calibration error( energy > 0 KeV )
 dataframe = dataframe[dataframe.integral > 0]
+
 
 
 for chn in range(0,8):
     plot_spectra(dataframe,chn)
     plot_log_spectra(dataframe,chn)
-    if chn == 4 or chn == 5:
-        plot_activity(dataframe,chn)
-    else:
-        plot_time_series(dataframe,analyzed_dataframe[analyzed_dataframe.channel==chn],chn)
-
-
+    plot_activity(dataframe,chn)
+    for err_code in range(1,8):
+        plot_err_activity(dataframe,chn,err_code)
+    if chn > 3:
+        plot_rates(chn)
+    print('Channel '+str(chn)+ ' plotted.')
 
