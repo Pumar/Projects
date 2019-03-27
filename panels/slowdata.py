@@ -56,16 +56,20 @@ slowdata = slowdata[(slowdata['pres'] > slowdata['pres'].median() - 2000) & (slo
 slowdata = slowdata[(slowdata['btot'] > (slowdata['btot'].median() - 50)) & (slowdata.btot < (slowdata['btot'].median() + 50))]
 #slowdata = slowdata[(slowdata['humid'] > slowdata['humid'].median() - 15) & (slowdata['humid'] < slowdata['humid'].median() + 15)]
 
+for hv in hvs:
+    slowdata = slowdata[ (slowdata[hv] > slowdata[hv].median() - 5) & (slowdata[hv] < slowdata[hv].median() + 5)]
 
 for hv in hvs:
     plt.figure()
     slowdata.plot(x='time',y=hv,c='k')
+    plt.axhline(y=slowdata[hv].median()+1,color='r')
+    plt.axhline(y=slowdata[hv].median()-1,color='r')
     plt.gcf().autofmt_xdate()
     myFmt = mdates.DateFormatter('%H:%M')
     plt.gca().xaxis.set_major_formatter(myFmt)
     plt.ylim(slowdata[hv].median() - 1.5, slowdata[hv].median() + 1.5)
     plt.title('High Voltage '+hv[-1])
-    plt.savefig(plotoutDir+'/'+'high_voltage'+hv[-1]+".png")
+    plt.savefig(plotoutDir+'/slow_control/high_voltage'+hv[-1]+'.png')
     plt.close()
 
 for i in range(4):
@@ -80,5 +84,5 @@ for i in range(4):
     plt.ylim(alarmranges[i][0] - (alarmranges[i][1]-alarmranges[i][0]),alarmranges[i][1] + (alarmranges[i][1]-alarmranges[i][0]) )
     plt.ylabel(axisLabels[i])
     plt.title(plotTitles[i])
-    plt.savefig(plotoutDir+'/'+fileNameStems[i]+'.png')
+    plt.savefig(plotoutDir+'/slow_control/'+fileNameStems[i]+'.png')
 
