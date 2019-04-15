@@ -12,6 +12,8 @@ import numpy as np
 from root_pandas import read_root
 from scipy.optimize import curve_fit
 import ROOT
+import scipy.signal as signal
+
 
 matplotlib.rcParams.update({'errorbar.capsize': 2})
 
@@ -40,6 +42,8 @@ def split_combine(df):
     df_ti = df[(df['channel'] == 2) | (df['channel'] == 3)][['time','channel','rate','drate','e']]
     df_co = df[df['channel'] > 5][['time','channel','rate','drate','e']]
     df_cs['peak'] = 'cs'
+    ## Fix for rate dropping for cs, should be done better
+    df_cs = df_cs[df_cs['rate'] > 70]
     #  Find peak rates for ti
     bins = pd.IntervalIndex.from_tuples([(505,517),(1139,1163),(1662,1680)])
     df_ti = df_ti.set_index(pd.cut(df_ti['e'],bins)).drop(labels='e',axis=1).reset_index()
@@ -67,11 +71,13 @@ df_ana['time'] = df_ana['time']/(3600*24.)
 
 df_ana = split_combine(df_ana)
 
+
 for chn in df_ana['channel'].unique():
     df_c = df_ana[df_ana['channel'] == chn]
     for peak in df_c['peak'].unique():
         print(chn,peak)
         df = df_c[(df_c['peak'] == peak)]
+        ### Exponential fit & half-life
         p0 = [df['rate'].max(),0.001]
         coeff, var_matrix = curve_fit(exp_fit, df['time'], df['rate'], p0=p0, maxfev = 5000)
         perr = np.sqrt(np.diag(var_matrix)) 
@@ -79,11 +85,32 @@ for chn in df_ana['channel'].unique():
         plt.figure()
         plt.errorbar(df['time'].values,df['rate'].values,yerr=df['drate'].values,fmt='.')
         plt.plot(df['time'].values,fit)
-        plt.xlabel('Time [hours]')
+        plt.xlabel('Time [days]')
         plt.ylabel('Activity [Becquerel]')
-        plt.text(1,df['rate'].min(),'$\lambda$ = '+str(coeff[1]) +'\n' + '$T_{1/2}$ = '+str(np.log(2)/(coeff[1]*365)),bbox=dict(facecolor='red',alpha=0.5))
-        plt.savefig('plots/'+str(peak)+'_expfit_chn'+str(chn)+'.png')
+        plt.text(1,df['rate'].min(),'$\lambda$ = '+str('{:.2e}'.format(coeff[1])) +'\n' + '$T_{1/2}$ = '+str(round(np.log(2)/(coeff[1]*365),2)) + ' $\pm$'+str(round((np.log(2)*perr[1])/(np.power(coeff[1],2)*365),2)) + ' years',bbox=dict(facecolor='red',alpha=0.5))
+        plt.savefig('plots/expfit/'+str(peak)+'_expfit_chn'+str(chn)+'.png')
         plt.close()
-
-
-
+        ##
+        p0 = [df['rate'].max(),0.001,0.1,1,0.001]
+        coeff, var_matrix = curve_fit(modulated_exp, df['time'], df['rate'], p0=p0, maxfev = 50000)
+        perr = np.sqrt(np.diag(var_matrix))
+        print(coeff)
+        fit = modulated_exp(df['time'],*coeff)
+        plt.figure()
+        plt.errorbar(df['time'].values,df['rate'].values,yerr=df['drate'].values,fmt='.')
+        plt.plot(df['time'].values,fit)
+        plt.xlabel('Time [days]')
+        plt.ylabel('Activity [Becquerel]')
+        plt.savefig('plots/modulated_exp/'+str(peak)+'_chn'+str(chn)+'.png')
+        #
+        df_ls = df['time']
+        df_ls['rate'] = fit
+        df_ls = df.sample(frac=0.5).sort_values(by='time')
+        ### lomb scargle
+        f = np.linspace(0.01, 15, 1500)
+        pgram = signal.lombscargle(df_ls['time'].values, df_ls['rate'].values,f, normalize=True)
+        plt.figure()
+        plt.plot(f,pgram)
+        plt.savefig('plots/lomb_scargle/ls_'+str(peak)+'_'+str(chn)+'.png')
+        plt.close()
+        
