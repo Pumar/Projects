@@ -136,8 +136,8 @@ def plot_activity(df,channel):
     df = df.set_index('time').resample('10T').count().dropna().reset_index().rename(columns={'integral' : 'Count'})
     df = df.iloc[1:-1]
     plt.figure()
-    df.plot(x='time',y='Count',title = channel_label[channel]+' - channel '+str(channel) )
-    plt.ylabel('Count')
+    df.plot(x='time',y='Count',title = channel_label[channel]+' - channel '+str(channel),color='k' )
+    plt.ylabel('Count/10min')
     plt.xlabel('Time')
     plt.savefig(plotoutDir + '/time_series_channel'+str(channel)+'.png')
     plt.close()
@@ -151,13 +151,10 @@ analyzed_dataframe = read_root(mostRecentDir.split('mx_')[0] + "analysis/ANA_" +
 dataframe = dataframe[dataframe.integral > 0]
 
 
-for chn in range(0,8):
+for chn in range(4,5):
     plot_spectra(dataframe,chn)
     plot_log_spectra(dataframe,chn)
-    if chn <2:
-        plot_activity(dataframe,chn)
-    else:
-        plot_time_series(dataframe,analyzed_dataframe[analyzed_dataframe.channel==chn],chn)
+    plot_activity(dataframe,chn)
 
 
 
