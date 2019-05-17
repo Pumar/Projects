@@ -11,9 +11,14 @@ import pandas as pd
 import numpy as np
 from root_pandas import read_root
 from scipy.optimize import curve_fit
+from scipy import stats
+from scipy.stats import linregress
 import ROOT
 import scipy.signal as signal
-
+from statsmodels.stats.diagnostic import kstest_normal
+from statsmodels.stats.gof import gof_chisquare_discrete
+from statsmodels.stats.stattools import durbin_watson
+from statsmodels.stats.diagnostic import kstest_normal
 
 matplotlib.rcParams.update({'errorbar.capsize': 2})
 
@@ -33,6 +38,14 @@ def exp_fit(x, *p):
     a, b = p
     return a*np.exp(-b*x)
 
+def linear_fit(x,*p):
+    a, b = p
+    return a-b*x
+
+def double_linear(x,*p):
+    a,b,c = p
+    return a +b*x + c*x**2
+
 def modulated_exp(x, *p):
     A,a,w,phi,l = p
     return A*(1+ a* np.cos(w*x+phi))*np.exp(-l*x)
@@ -45,38 +58,41 @@ def split_combine(df):
     df_ti = df[(df['channel'] == 2) | (df['channel'] == 3)][['time','channel','rate','drate','e']]
     df_co = df[df['channel'] > 5][['time','channel','rate','drate','e']]
     df_cs['peak'] = 'cs'
-    ## Fix for rate dropping for cs, should be done better  
-    df_cs = df_cs.groupby(['time','peak']).agg({'channel' : 'min', 'rate' : 'sum', 'drate' : quadrature})
-    df_cs.reset_index(inplace=True)
-    df_cs.rename(columns = {'peak' : 'source'},inplace=True)
-    df_cs.drop(labels='channel',axis=1,inplace=True)
-    df_cs = df_cs[df_cs['rate'] > 160]
+    ## Fix for rate dropping for cs, should be done better 
+    if df_cs.shape[0] > 0: 
+        df_cs = df_cs.groupby(['time','peak']).agg({'channel' : 'min', 'rate' : 'sum', 'drate' : quadrature})
+        df_cs.reset_index(inplace=True)
+        df_cs.rename(columns = {'peak' : 'source'},inplace=True)
+        df_cs.drop(labels='channel',axis=1,inplace=True)
+        df_cs = df_cs[df_cs['rate'] > 160]
     #  Find peak rates for ti
-    bins = pd.IntervalIndex.from_tuples([(505,517),(1139,1163),(1662,1680)])
-    df_ti = df_ti.set_index(pd.cut(df_ti['e'],bins)).drop(labels='e',axis=1).reset_index()
-    df_ti['e'] = df_ti['e'].astype('str')
-    df_ti['e'] = np.where(df_ti['e'] == "(505, 517]", 'ti1',np.where(df_ti['e'] == "(1139, 1163]",'ti2','ti3'))
-    df_ti = df_ti.rename(columns = {'e' : 'peak'})
-    df_ti = df_ti.groupby(['time','peak']).agg({'channel' : 'min', 'rate' : 'sum', 'drate' : quadrature})
-    df_ti.reset_index(inplace=True)
-    df_ti.drop(labels='channel',axis=1,inplace=True)
-    df_ti['peak'] = df_ti['peak'].str[:-1]
-    df_ti.rename(columns = {'peak' : 'source'}, inplace=True)
-    df_ti = df_ti.groupby('time').agg({'source' : 'min', 'rate' : 'sum', 'drate' : quadrature})
-    df_ti.reset_index(inplace=True)
+    if df_ti.shape[0] > 0:
+        bins = pd.IntervalIndex.from_tuples([(505,517),(1139,1163),(1662,1680)])
+        df_ti = df_ti.set_index(pd.cut(df_ti['e'],bins)).drop(labels='e',axis=1).reset_index()
+        df_ti['e'] = df_ti['e'].astype('str')
+        df_ti['e'] = np.where(df_ti['e'] == "(505, 517]", 'ti1',np.where(df_ti['e'] == "(1139, 1163]",'ti2','ti3'))
+        df_ti = df_ti.rename(columns = {'e' : 'peak'})
+        df_ti = df_ti.groupby(['time','peak']).agg({'channel' : 'min', 'rate' : 'sum', 'drate' : quadrature})
+        df_ti.reset_index(inplace=True)
+        df_ti.drop(labels='channel',axis=1,inplace=True)
+        df_ti['peak'] = df_ti['peak'].str[:-1]
+        df_ti.rename(columns = {'peak' : 'source'}, inplace=True)
+        df_ti = df_ti.groupby('time').agg({'source' : 'min', 'rate' : 'sum', 'drate' : quadrature})
+        df_ti.reset_index(inplace=True)
     # Find peak rates for cobalt
-    bins = pd.IntervalIndex.from_tuples([(1160,1186),(1320,1345),(2495,2520)])
-    df_co = df_co.set_index(pd.cut(df_co['e'],bins)).drop(labels='e',axis=1).reset_index()
-    df_co['e'] = df_co['e'].astype('str')
-    df_co['e'] = np.where(df_co['e'] == "(1160, 1186]", 'co1',np.where(df_co['e'] == "(1320, 1345]",'co2','co3'))
-    df_co = df_co.rename(columns = {'e' : 'peak'})
-    df_co = df_co.groupby(['time','peak']).agg({'channel' : 'min', 'rate' : 'sum', 'drate' : quadrature})
-    df_co.reset_index(inplace=True)
-    df_co.drop(labels='channel',axis=1,inplace=True)
-    df_co['peak'] = df_co['peak'].str[:-1]
-    df_co.rename(columns = {'peak' : 'source'}, inplace=True)
-    df_co = df_co.groupby('time').agg({'source' : 'min', 'rate' : 'sum', 'drate' : quadrature})
-    df_co.reset_index(inplace=True)
+    if df_co.shape[0] > 0:
+        bins = pd.IntervalIndex.from_tuples([(1160,1186),(1320,1345),(2495,2520)])
+        df_co = df_co.set_index(pd.cut(df_co['e'],bins)).drop(labels='e',axis=1).reset_index()
+        df_co['e'] = df_co['e'].astype('str')
+        df_co['e'] = np.where(df_co['e'] == "(1160, 1186]", 'co1',np.where(df_co['e'] == "(1320, 1345]",'co2','co3'))
+        df_co = df_co.rename(columns = {'e' : 'peak'})
+        df_co = df_co.groupby(['time','peak']).agg({'channel' : 'min', 'rate' : 'sum', 'drate' : quadrature})
+        df_co.reset_index(inplace=True)
+        df_co.drop(labels='channel',axis=1,inplace=True)
+        df_co['peak'] = df_co['peak'].str[:-1]
+        df_co.rename(columns = {'peak' : 'source'}, inplace=True)
+        df_co = df_co.groupby('time').agg({'source' : 'min', 'rate' : 'sum', 'drate' : quadrature})
+        df_co.reset_index(inplace=True)
     #Append all split dfs
     return pd.concat([df_ti,df_cs,df_co])
 
@@ -89,11 +105,74 @@ with open('ana_files.txt') as f:
 df_ana['time'] = df_ana['time'] - df_ana['time'].min()
 df_ana['time'] = df_ana['time']/(3600*24.)
 
+df_co6 = split_combine(df_ana[df_ana.channel == 6])
+df_co7 = split_combine(df_ana[df_ana.channel == 7])
+df_co6 = df_co6.drop(labels=['channel','e','peak'],axis=1)
+df_co7 = df_co7.drop(labels=['channel','e','peak'],axis=1)
 
 df_ana = split_combine(df_ana)
 
 
+df = df_co7
+p0 = [df['rate'].max(),0.001]
+coeff, var_matrix = curve_fit(exp_fit, df['time'], df['rate'], p0=p0, maxfev = 50000)
+perr = np.sqrt(np.diag(var_matrix))
+x = df['time'].values
+y = np.log(df['rate'])
+y_err = df['drate']/df['rate']
 
+#
+p0 = [max(y),-1]
+coeff2, var_matrix2 = curve_fit(linear_fit, x, y, p0=p0, maxfev = 50000)
+sl, inter, rv, p, stderr = linregress(x=x,y=y)
+#
+e_fit = exp_fit(x,*coeff)
+slope = coeff[1]
+intercept = np.log(coeff[0])
+coeff = [intercept,slope]
+df['lin'] = np.vectorize(linear_fit)(df['time'].values,*coeff)
+df['residue'] = df['lin'] - y
+df['exp_residue'] = e_fit-df['rate']
+r_squared = 1 - (np.sum(np.power(df['residue'],2)))/(np.sum(np.power(y-np.mean(y),2)))
+print(r_squared)
+fit = linear_fit(x, *coeff)
+plt.figure()
+plt.errorbar(x,y,yerr=y_err,fmt='.')
+plt.plot(x,fit)
+#
+plt.title('The logarithmic activity of the $^{60}$Co source, channel 7')
+plt.text(0,3.87,'$R^2 = $'+str(round(r_squared,4)),bbox=dict(facecolor='red',alpha=0.5))
+plt.ylabel('log(A(t))')
+plt.xlabel('Time (days)')
+#
+plt.savefig('plots/hyp_testing/co7_linfit.png')
+plt.close()
+plt.figure()
+plt.hist(x=df['exp_residue'],histtype='step')
+
+plt.xlabel('Residue (Absolute fit error)')
+plt.ylabel('Counts')
+#
+plt.title('Residue distribution for $^{60}Co$, channel 7')
+plt.savefig('plots/hyp_testing/hist_residues_co7.png')
+plt.close()
+plt.figure()
+plt.scatter(x=df['lin'].values,y=df['residue'].values,c='r')
+plt.axhline(y=0,c='k')
+plt.xlim(min(df['lin'])-0.001,max(df['lin'])+0.001)
+plt.ylim(min(df['residue'])-0.001,max(df['residue'])+0.001)
+#
+plt.title('Versus Fits for the log activity of $^{60}$Co, channel 7')
+plt.xlabel('Fitted Value')
+plt.ylabel('Residual')
+plt.savefig('plots/hyp_testing/residue_co7.png')
+plt.close()
+ks_stat,p = kstest_normal(df['residue'],dist='norm',pvalmethod='approx')
+print(p)
+print(durbin_watson(df['residue']))
+sys.exit()
+"""
+### Exponential fits and half-lives
 for source in df_ana['source'].unique():
     if source == 'co':
         continue
@@ -118,9 +197,72 @@ for source in df_ana['source'].unique():
         plt.text(x,y,'$\lambda$ = '+str('{:.2e}'.format(coeff[1])) +' $\pm$'+str('{:.2e}'.format(perr[1]))+' [days]$^{-1}$'+'\n' + '$T_{1/2}$ = '+str(round(np.log(2)/(coeff[1]*365),2)) + ' $\pm$'+str(round((np.log(2)*perr[1])/(np.power(coeff[1],2)*365),2)) + ' years',bbox=dict(facecolor='red',alpha=0.5))   
     plt.savefig('plots/agg_peaks/'+str(source)+'.png')
     plt.close()
+"""
 
-
-
+### Hypothesis testing framework
+for source in df_ana['source'].unique():
+    if source == 'co':
+        continue
+    df = df_ana[df_ana['source'] == source]
+    p0 = [df['rate'].max(),0.001]
+    coeff, var_matrix = curve_fit(exp_fit, df['time'], df['rate'], p0=p0, maxfev = 50000)
+    perr = np.sqrt(np.diag(var_matrix))
+    x = df['time'].values
+    y = np.log(df['rate'])
+    y_err = df['drate']/df['rate']
+    
+    #
+    p0 = [max(y),-1]
+    coeff2, var_matrix2 = curve_fit(linear_fit, x, y, p0=p0, maxfev = 50000)
+    sl, inter, rv, p, stderr = linregress(x=x,y=y)
+    #
+    e_fit = exp_fit(x,*coeff)
+    slope = coeff[1]
+    intercept = np.log(coeff[0])
+    coeff = [intercept,slope]
+    df['lin'] = np.vectorize(linear_fit)(df['time'].values,*coeff)
+    df['residue'] = df['lin'] - y
+    df['exp_residue'] = e_fit-df['rate']
+    r_squared = 1 - (np.sum(np.power(df['residue'],2)))/(np.sum(np.power(y-np.mean(y),2)))
+    fit = linear_fit(x, *coeff)
+    plt.figure()
+    plt.errorbar(x,y,yerr=y_err,fmt='.')
+    plt.plot(x,fit)
+    if source == 'ti':
+        plt.title('The logarithmic activity of the $^{44}$Ti source')
+        plt.text(0,6.157,'$R^2 = $'+str(round(r_squared,4)),bbox=dict(facecolor='red',alpha=0.5))
+    else:
+        plt.title('The logarithmic activity of the $^{137}$Cs source')
+        plt.text(0,min(y),'$R^2 = $'+str(round(r_squared,4)),bbox=dict(facecolor='red',alpha=0.5))
+    plt.ylabel('log(A(t))')
+    plt.xlabel('Time (days)')
+    plt.savefig('plots/hyp_testing/'+str(source)+'_linfit.png')
+    plt.close()
+    plt.figure()
+    plt.hist(x=df['residue'],histtype='step')
+    plt.xlabel('Residue (Absolute fit error)')
+    plt.ylabel('Counts')
+    if source == 'ti':
+        plt.title('Residue distribution for $^{44}$Ti')
+    else:
+        plt.title('Residue distribution for $^{137}$Cs')
+    plt.savefig('plots/hyp_testing/hist_residues_'+str(source)+'.png')
+    plt.close()
+    plt.figure()
+    plt.scatter(x=df['lin'].values,y=df['residue'].values,c='r')
+    plt.axhline(y=0,c='k')
+    plt.xlim(min(df['lin'])-0.0001,max(df['lin'])+0.0001)
+    plt.ylim(min(df['residue'])-0.0001,max(df['residue'])+0.0001)
+    if source == 'ti':
+        plt.title('Versus Fits for the log activity of $^{44}$Ti')
+    else:
+        plt.title('Versus Fits for the log activity of $^{137}$Cs')
+    plt.xlabel('Fitted Value')
+    plt.ylabel('Residual')
+    plt.savefig('plots/hyp_testing/residue_'+str(source)+'.png')
+    plt.close()
+    ks_stat,p = kstest_normal(df['residue'],dist='norm',pvalmethod='approx')
+    print(source,(p))
 
 """
 for chn in df_ana['channel'].unique():
