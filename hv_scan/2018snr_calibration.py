@@ -12,7 +12,7 @@ import numpy as np
 from root_pandas import read_root
 from scipy.optimize import curve_fit
 
-
+matplotlib.rcParams.update({'errorbar.capsize': 2})
 ##############################################################################################################################
 #
 #
@@ -226,6 +226,7 @@ def plot_calib(hv,de,err,channel):
     df.plot(x='hv',y='de',yerr = 'err', kind='scatter',title = 'Normalized Energy Peak Width (standard deviation/mean) X High Voltage ')
     plt.xlabel('Voltage (V)')
     plt.ylabel(r'$\sigma$'+'/'+'$\mu$')
+    plt.ylim(df['de'].min()-0.002,df['de'].max()+0.002)
     plt.savefig(plotoutDir + '/hv_scan/'+title)
     plt.close()
 

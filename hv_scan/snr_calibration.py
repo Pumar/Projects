@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from root_pandas import read_root
 from scipy.optimize import curve_fit
-
+matplotlib.rcParams.update({'errorbar.capsize': 2})
 
 ##############################################################################################################################
 #
@@ -172,7 +172,7 @@ def peak_width(df,channel):
         perr = np.sqrt(np.diag(var_matrix))
         dm = coeff[2]/coeff[1]
         #
-        print('cs_exp = '+str(coeff[-2]))
+        #print('cs_exp = '+str(coeff[-2]))
         #
         ### f = A/B, used approx from https://www.sagepub.com/sites/default/files/upm-binaries/6427_Chapter_4__Lee_(Analyzing)_I_PDF_6.pdf
         #check wiki page for error propagation
@@ -199,7 +199,7 @@ def snr(signal, background):
     return signal/np.sqrt(background)
 
 def snr_test(signal,N):
-    return signal/np.sqrt(N)
+    return float(signal/np.sqrt(N))
     
  
 def plot_calib(hv,de,err,channel):
@@ -277,14 +277,14 @@ def plot_spectra(df,channel,hv,pf, pf_err):
     plt.close()
     return
 
-def plot_snr(hv,snr,channel):
+def plot_snr(hv,snr,err,channel):
     title = 'snr_hv_channel' + str(channel) + '.png'
-    d = {'hv' : hv, 'snr' : snr}
+    d = {'hv' : hv, 'snr' : snr, 'err' : err}
     df = pd.DataFrame(data=d)
     plt.figure()
-    df.plot(x='hv',y='snr', kind='scatter',title = 'Signal to Noise Ratio X High Voltage ')
-    plt.xlabel('Voltage (V)')
-    plt.ylabel('SNR (unitless)')
+    df.plot(x='hv',y='snr', kind='scatter',yerr='err',title = 'Signal to Noise Ratio X High Voltage ')
+    plt.xlabel('Voltage [V]')
+    plt.ylabel('SNR [a.u.]')
     plt.savefig(plotoutDir + '/hv_scan/'+title)
     plt.close()
     return
@@ -301,6 +301,7 @@ for chn in range(4,8):
     de_l = []
     err_l = []
     snr_l = []
+    snr_err = []
     for mod_dir in hv_file_list:
         rootf=[]
         for file in os.listdir(mod_dir):
@@ -312,12 +313,14 @@ for chn in range(4,8):
         n_max,coeff, coeff_err, de_mu,de_mu_err = peak_width(dataframe,chn)
         #snr_l.append(snr(coeff[0],exponential_background(coeff[-1], coeff[-2], coeff[1] - coeff[2], coeff[1] + coeff[2])))
         snr_l.append(snr_test(coeff[0],n_max))
+        snr_err.append(coeff_err[0]*200/n_max)
         err_l.append(de_mu_err)
         de_l.append(de_mu)
         hv_s = hv0[chn-4]-hv_file_list.index(mod_dir)*hv_step
         plot_spectra(dataframe,chn,hv_s,coeff, coeff_err)
+    print(snr_err)
     plot_calib(hv_l,de_l,err_l,chn)
-    plot_snr(hv_l,snr_l,chn)
+    plot_snr(hv_l,snr_l,snr_err,chn)
     print('channel'+str(chn)+' plotted')
         
     
