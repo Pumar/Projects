@@ -105,21 +105,23 @@ with open('ana_files.txt') as f:
 df_ana['time'] = df_ana['time'] - df_ana['time'].min()
 df_ana['time'] = df_ana['time']/(3600*24.)
 
+
+#df_ana = split_combine(df_ana)
+
+
 df_co6 = split_combine(df_ana[df_ana.channel == 6])
 df_co7 = split_combine(df_ana[df_ana.channel == 7])
-df_co6 = df_co6.drop(labels=['channel','e','peak'],axis=1)
 df_co7 = df_co7.drop(labels=['channel','e','peak'],axis=1)
+df_co6 = df_co6.drop(labels=['channel','e','peak'],axis=1)
 
-df_ana = split_combine(df_ana)
 
-
-df = df_co7
+df = df_co6
 p0 = [df['rate'].max(),0.001]
 coeff, var_matrix = curve_fit(exp_fit, df['time'], df['rate'], p0=p0, maxfev = 50000)
 perr = np.sqrt(np.diag(var_matrix))
 x = df['time'].values
-y = np.log(df['rate'])
-y_err = df['drate']/df['rate']
+y = df['rate'].values
+y_err = df['drate']
 
 #
 p0 = [max(y),-1]
@@ -127,6 +129,7 @@ coeff2, var_matrix2 = curve_fit(linear_fit, x, y, p0=p0, maxfev = 50000)
 sl, inter, rv, p, stderr = linregress(x=x,y=y)
 #
 e_fit = exp_fit(x,*coeff)
+"""
 slope = coeff[1]
 intercept = np.log(coeff[0])
 coeff = [intercept,slope]
@@ -136,25 +139,28 @@ df['exp_residue'] = e_fit-df['rate']
 r_squared = 1 - (np.sum(np.power(df['residue'],2)))/(np.sum(np.power(y-np.mean(y),2)))
 print(r_squared)
 fit = linear_fit(x, *coeff)
+"""
 plt.figure()
 plt.errorbar(x,y,yerr=y_err,fmt='.')
-plt.plot(x,fit)
+plt.plot(x,e_fit)
 #
-plt.title('The logarithmic activity of the $^{60}$Co source, channel 7')
-plt.text(0,3.87,'$R^2 = $'+str(round(r_squared,4)),bbox=dict(facecolor='red',alpha=0.5))
-plt.ylabel('log(A(t))')
+plt.title('The activity of the $^{60}$Co source, channel 6')
+#plt.text(0,3.87,'$R^2 = $'+str(round(r_squared,4)),bbox=dict(facecolor='red',alpha=0.5))
+plt.text(0,47.82,'$\lambda$ = '+str('{:.2e}'.format(coeff[1])) +'\n' + '$T_{1/2}$ = '+str(round(np.log(2)/(coeff[1]*365),2)) + ' $\pm$'+str(round((np.log(2)*perr[1])/(np.power(coeff[1],2)*365),2)) + ' years',bbox=dict(facecolor='red',alpha=0.5))
+plt.ylabel('Activity [Becquerel]')
 plt.xlabel('Time (days)')
 #
-plt.savefig('plots/hyp_testing/co7_linfit.png')
+plt.savefig('plots/agg_peaks/co6.png')
 plt.close()
+"""
 plt.figure()
 plt.hist(x=df['exp_residue'],histtype='step')
 
 plt.xlabel('Residue (Absolute fit error)')
 plt.ylabel('Counts')
 #
-plt.title('Residue distribution for $^{60}Co$, channel 7')
-plt.savefig('plots/hyp_testing/hist_residues_co7.png')
+plt.title('Residue distribution for $^{60}Co$, channel 6')
+plt.savefig('plots/hyp_testing/hist_residues_co6.png')
 plt.close()
 plt.figure()
 plt.scatter(x=df['lin'].values,y=df['residue'].values,c='r')
@@ -162,14 +168,15 @@ plt.axhline(y=0,c='k')
 plt.xlim(min(df['lin'])-0.001,max(df['lin'])+0.001)
 plt.ylim(min(df['residue'])-0.001,max(df['residue'])+0.001)
 #
-plt.title('Versus Fits for the log activity of $^{60}$Co, channel 7')
+plt.title('Versus Fits for the log activity of $^{60}$Co, channel 6')
 plt.xlabel('Fitted Value')
 plt.ylabel('Residual')
-plt.savefig('plots/hyp_testing/residue_co7.png')
+plt.savefig('plots/hyp_testing/residue_co6.png')
 plt.close()
 ks_stat,p = kstest_normal(df['residue'],dist='norm',pvalmethod='approx')
 print(p)
 print(durbin_watson(df['residue']))
+"""
 sys.exit()
 """
 ### Exponential fits and half-lives
@@ -198,7 +205,7 @@ for source in df_ana['source'].unique():
     plt.savefig('plots/agg_peaks/'+str(source)+'.png')
     plt.close()
 """
-
+"""
 ### Hypothesis testing framework
 for source in df_ana['source'].unique():
     if source == 'co':
@@ -264,6 +271,7 @@ for source in df_ana['source'].unique():
     ks_stat,p = kstest_normal(df['residue'],dist='norm',pvalmethod='approx')
     print(source,(p))
 
+"""
 """
 for chn in df_ana['channel'].unique():
     df_c = df_ana[df_ana['channel'] == chn]
